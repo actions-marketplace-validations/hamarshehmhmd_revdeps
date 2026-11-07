@@ -24,7 +24,7 @@ def test_npm_example_end_to_end(tmp_path, capsys, monkeypatch):
                    "--workdir", str(tmp_path / "w")])
     out = capsys.readouterr().out
     assert rc == 1
-    data = json.loads((ex / "out.json").read_text())
+    data = json.loads((ex / "out.json").read_text(encoding="utf-8"))
     status = {r["name"]: r["status"] for r in data["results"]}
     assert status == {"blog-engine": "ok", "url-shortener": "broken", "recipe-site": "fixed",
                       "legacy-cms": "already-failing"}
@@ -34,7 +34,7 @@ def test_npm_example_end_to_end(tmp_path, capsys, monkeypatch):
     fixed = next(r for r in data["results"] if r["name"] == "recipe-site")
     assert fixed["new_passes"] == ["accented recipe names"]
     assert "4 dependents: 1 broken, 1 ok, 1 fixed, 1 already failing" in out
-    assert "| ❌ BROKEN | url-shortener |" in (ex / "out.md").read_text()
+    assert "| ❌ BROKEN | url-shortener |" in (ex / "out.md").read_text(encoding="utf-8")
     assert (ex / ".revdeps" / "artifacts").is_dir()
     # --fail-on: nothing counts as failure when we only fail on errors
     rc = cli.main(["run", "--color", "never", "--fail-on", "error", "--only", "blog-engine,url-shortener",
@@ -58,11 +58,13 @@ def test_pypi_example_end_to_end(tmp_path, capsys):
     ex = copy_example(tmp_path, "pypi")
     rc = cli.main(["run", "-c", str(ex / "revdeps.toml"), "--color", "never", "--json", str(tmp_path / "o.json"),
                    "--workdir", str(tmp_path / "w")])
-    data = json.loads((tmp_path / "o.json").read_text())
+    data = json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))
     assert rc == 1
     status = {r["name"]: r["status"] for r in data["results"]}
     assert status == {"deploy-tool": "ok", "feature-flags": "broken"}
     ff = data["results"][1]
+    # the library checkout must stay clean: builds happen in per-dependent copies
+    assert not (ex / "tinyconf" / "build").exists()
     assert ff["new_failures"] == ["test_flags::test_flag_enabled"]
     assert "'bool' object has no attribute 'lower'" in ff["messages"]["test_flags::test_flag_enabled"]
 
@@ -81,7 +83,7 @@ def test_step_summary(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summ))
     rc = cli.main(["run", "-c", str(tmp_path / "revdeps.toml"), "--workdir", str(tmp_path / "w")])
-    assert rc == 0 and "| ✅ ok | d |" in summ.read_text()
+    assert rc == 0 and "| ✅ ok | d |" in summ.read_text(encoding="utf-8")
 
 
 def test_config_errors_exit_2(tmp_path, capsys):
@@ -118,7 +120,7 @@ def test_discover_autodetect_write_force(tmp_path, monkeypatch, capsys):
     assert calls == [("mylib", "npm", 3)]
     out = capsys.readouterr()
     assert "mylib (npm): 2 dependent packages" in out.out and "5,000/mo" in out.out
-    text = (tmp_path / "revdeps.toml").read_text()
+    text = (tmp_path / "revdeps.toml").read_text(encoding="utf-8")
     assert 'repo = "https://github.com/a/big.git"' in text and 'path = "."' in text
     assert cli.main(["discover", "--write"]) == 2
     assert cli.main(["discover", "--write", "--force", "--json"]) == 0

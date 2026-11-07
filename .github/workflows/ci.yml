@@ -88,4 +88,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: REVDEPS_REF=${{ github.sha }} sh install.sh
-      - run: ~/.local/bin/revdeps --version
+      - run: |
+          export PATH="$HOME/.local/bin:${PIPX_BIN_DIR:-/opt/pipx_bin}:$PATH"
+          revdeps --version

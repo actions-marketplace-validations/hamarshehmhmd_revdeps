@@ -268,3 +268,35 @@ def test_library_build_failure(tmp_path):
         runner.prepare_library(lib, str(tmp_path / "art"), str(log))
     ok = Library("pypi", str(tmp_path), build=pycmd("pass"))
     assert runner.prepare_library(ok, str(tmp_path / "art"), str(log)) == {"lib": str(tmp_path)}
+
+
+def test_rmtree_removes_read_only_files(tmp_path):
+    import stat
+    d = tmp_path / "ro"
+    (d / "sub").mkdir(parents=True)
+    f = d / "sub" / "pack"
+    f.write_text("x")
+    os.chmod(f, stat.S_IREAD)
+    runner.rmtree(str(d))
+    assert not d.exists()
+    runner.rmtree(str(d))  # missing is fine
+
+
+def test_pypi_dependent_gets_private_library_copy(tmp_path):
+    lib = tmp_path / "mylib"
+    (lib / "build").mkdir(parents=True)
+    (lib / "pyproject.toml").write_text("[project]\nname='mylib'\n")
+    dep = make_dep(tmp_path, "ok", venv=False,
+                   inject=pycmd("import sys, os; sys.exit(0 if os.path.isfile(os.path.join(sys.argv[1], 'pyproject.toml')) "
+                                "and not os.path.isdir(os.path.join(sys.argv[1], 'build')) else 1)") + " {lib}")
+    opts = Options(workdir=str(tmp_path / "work"), outdir=str(tmp_path / "out"), keep=True)
+    r = run_dependent(dep, Library("pypi", str(lib)), {"lib": str(lib)}, opts, str(tmp_path))
+    assert r.status == OK, open(r.log).read()
+    assert (tmp_path / "work" / "work" / "dep.lib" / "pyproject.toml").exists()
+
+
+def test_path_dependent_containing_workdir_does_not_recurse(tmp_path):
+    d = make_dep(tmp_path, "ok", name="self")
+    opts = Options(workdir=os.path.join(d.path, ".scratch"), outdir=str(tmp_path / "out"))
+    r = run_dependent(d, LIB, {"tarball": "/x.tgz"}, opts, str(tmp_path))
+    assert r.status == OK, open(r.log).read()

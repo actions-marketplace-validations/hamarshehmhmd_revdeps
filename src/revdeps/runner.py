@@ -7,6 +7,7 @@ import re
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -82,6 +83,36 @@ class Options:
 
 class PrepareError(Exception):
     pass
+
+
+def copy_tree(src: str, dest: str, patterns) -> None:
+    """copytree that never descends into the folder it is copying into (workdir inside the source)."""
+    dest_abs = os.path.abspath(dest)
+
+    def ignore(d, names):
+        out = set(patterns(d, names))
+        for n in names:
+            full = os.path.abspath(os.path.join(d, n))
+            if dest_abs == full or dest_abs.startswith(full + os.sep):
+                out.add(n)
+        return out
+    shutil.copytree(src, dest, ignore=ignore)
+
+
+def rmtree(path: str) -> None:
+    """shutil.rmtree that also removes read-only files (git objects on Windows)."""
+    def onerror(func, p, _exc):
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except OSError:
+            pass
+    if not os.path.isdir(path):
+        return
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=onerror)
+    else:  # pragma: no cover
+        shutil.rmtree(path, onerror=onerror)
 
 
 def quote(s: str) -> str:
@@ -205,13 +236,13 @@ def fetch_source(dep: Dependent, dest: str, log_path: str) -> str:
     if dep.path:
         if not os.path.isdir(dep.path):
             raise PrepareError(f"path {dep.path} does not exist")
-        shutil.copytree(dep.path, dest, ignore=IGNORE_COPY)
+        copy_tree(dep.path, dest, IGNORE_COPY)
     else:
         q = quote
         cmd = f"git clone --quiet --depth 1 {'--branch ' + q(dep.ref) + ' ' if dep.ref else ''}{q(dep.repo)} {q(dest)}"
         ph = run_shell(cmd, os.path.dirname(dest), env, 600, log_path, "clone")
         if not ph.passed and dep.ref:
-            shutil.rmtree(dest, ignore_errors=True)
+            rmtree(dest)
             cmd = f"git clone --quiet --filter=blob:none {q(dep.repo)} {q(dest)} && git -C {q(dest)} checkout --quiet {q(dep.ref)}"
             ph = run_shell(cmd, os.path.dirname(dest), env, 900, log_path, "clone")
         if not ph.passed:
@@ -237,7 +268,7 @@ def run_dependent(dep: Dependent, lib: Library, values: Dict[str, str], opts: Op
         return res
     open(log_path, "w").close()
     root = os.path.join(opts.workdir, "work", sd)
-    shutil.rmtree(root, ignore_errors=True)
+    rmtree(root)
     os.makedirs(os.path.dirname(root), exist_ok=True)
     try:
         try:
@@ -273,8 +304,19 @@ def run_dependent(dep: Dependent, lib: Library, values: Dict[str, str], opts: Op
             python = os.path.join(bindir, "python.exe" if WINDOWS else "python")
         env.update(dep.env)
 
+        lib_values = dict(values)
+        if lib.ecosystem == "pypi" and os.path.isdir(lib.path):
+            # Each dependent installs from its own copy: parallel pip builds of one source tree collide
+            # (shared build/ dir), and this keeps build artifacts out of your checkout.
+            lib_copy = os.path.join(opts.workdir, "work", sd + ".lib")
+            rmtree(lib_copy)
+            copy_tree(lib.path, lib_copy, shutil.ignore_patterns(
+                ".git", "build", "dist", "*.egg-info", ".revdeps", ".revdeps-venv", ".venv", "venv",
+                "node_modules", "__pycache__", ".tox", ".nox", ".pytest_cache"))
+            lib_values["lib"] = lib_copy
+
         def vals(phase: str) -> Dict[str, str]:
-            v = dict(values)
+            v = dict(lib_values)
             v.update({"python": python, "workdir": project, "config_dir": config_dir, "junit": os.path.join(logs, f"{sd}-{phase}.xml")})
             return v
 
@@ -350,7 +392,8 @@ def run_dependent(dep: Dependent, lib: Library, values: Dict[str, str], opts: Op
     finally:
         res.seconds = round(time.monotonic() - started, 1)
         if not opts.keep:
-            shutil.rmtree(root, ignore_errors=True)
+            rmtree(root)
+            rmtree(os.path.join(opts.workdir, "work", sd + ".lib"))
 
 
 def run_all(cfg: Config, opts: Options, on_result: Optional[Callable[[Result], None]] = None) -> List[Result]:
