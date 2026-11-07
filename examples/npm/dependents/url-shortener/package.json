@@ -1,0 +1,8 @@
+{
+  "name": "url-shortener",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example dependent: short, length-capped slugs",
+  "dependencies": { "slugkit": "^1.0.0" },
+  "scripts": { "test": "node --test" }
+}

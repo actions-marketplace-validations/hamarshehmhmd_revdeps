@@ -1,0 +1,8 @@
+{
+  "name": "slugkit",
+  "version": "1.0.0",
+  "description": "Tiny slug generator (revdeps example library, released version)",
+  "main": "index.js",
+  "files": ["index.js"],
+  "license": "AGPL-3.0-or-later"
+}

@@ -1,0 +1,36 @@
+name: "revdeps"
+description: "Run your dependents' test suites against this commit of your library (baseline vs candidate)."
+author: "Mohammad Hamarsheh"
+branding:
+  icon: "git-merge"
+  color: "orange"
+inputs:
+  config:
+    description: "Path to revdeps.toml"
+    default: "revdeps.toml"
+  args:
+    description: "Extra arguments for `revdeps run` (e.g. --jobs 4 --fail-on broken,error)"
+    default: ""
+  version:
+    description: "revdeps git ref to install (defaults to the ref this action was used at)"
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Install revdeps
+      shell: bash
+      env:
+        REF: ${{ inputs.version || github.action_ref || 'main' }}
+      run: |
+        if command -v pipx >/dev/null 2>&1; then
+          pipx install --force "git+https://github.com/hamarshehmhmd/revdeps@${REF}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        else
+          python3 -m pip install --quiet --disable-pip-version-check "git+https://github.com/hamarshehmhmd/revdeps@${REF}"
+        fi
+    - name: Run revdeps
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+        ARGS: ${{ inputs.args }}
+      run: revdeps run --config "$CONFIG" --color always --json revdeps-results.json $ARGS

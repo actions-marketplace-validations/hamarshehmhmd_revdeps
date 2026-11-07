@@ -1,0 +1,91 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.10", "3.11", "3.13"]
+        node: ["22"]
+        include:
+          - os: ubuntu-latest
+            python: "3.12"
+            node: "20"
+          - os: ubuntu-22.04
+            python: "3.9"
+            node: "22"
+          - os: macos-latest
+            python: "3.13"
+            node: "22"
+          - os: windows-latest
+            python: "3.13"
+            node: "22"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q -rs
+        env:
+          REVDEPS_LIVE: "1"
+
+  examples:
+    name: examples + GitHub Action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python3 -m pip install .
+      - name: npm example must report url-shortener as broken (exit 1)
+        working-directory: examples/npm
+        run: |
+          set +e
+          revdeps run --color always --json out.json
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          python3 -c "import json; r={x['name']:x['status'] for x in json.load(open('out.json'))['results']}; print(r); assert r=={'blog-engine':'ok','url-shortener':'broken','recipe-site':'fixed','legacy-cms':'already-failing'}"
+      - name: pypi example must report feature-flags as broken (exit 1)
+        working-directory: examples/pypi
+        run: |
+          set +e
+          revdeps run --color always
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+      - name: use the composite action (expected to fail on the example)
+        id: action
+        continue-on-error: true
+        uses: ./
+        with:
+          config: examples/npm/revdeps.toml
+          version: ${{ github.sha }}
+      - name: action outcome
+        run: test "${{ steps.action.outcome }}" = "failure"
+      - name: action passes when only healthy dependents are tested
+        uses: ./
+        with:
+          config: examples/npm/revdeps.toml
+          version: ${{ github.sha }}
+          args: --only blog-engine,recipe-site
+      - name: discover against the live API
+        run: revdeps discover escape-html -e npm -n 3
+
+  install-script:
+    name: one-line install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: REVDEPS_REF=${{ github.sha }} sh install.sh
+      - run: ~/.local/bin/revdeps --version

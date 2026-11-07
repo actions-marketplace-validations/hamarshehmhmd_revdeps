@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tinyconf"
+version = "1.0.0"
+description = "Tiny key = value config parser (revdeps example library)"
+requires-python = ">=3.9"

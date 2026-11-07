@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "revdeps"
+version = "0.1.0"
+description = "Test your library change against the projects that depend on it, before you release. Baseline vs candidate runs for npm and PyPI dependents."
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{name = "Mohammad Hamarsheh"}]
+requires-python = ">=3.9"
+dependencies = ["tomli>=1.1; python_version < '3.11'"]
+keywords = [
+  "reverse-dependencies", "dependents", "ecosystem-ci", "regression-testing",
+  "npm", "pypi", "release", "semver", "maintainers", "ci",
+]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/hamarshehmhmd/revdeps"
+Issues = "https://github.com/hamarshehmhmd/revdeps/issues"
+
+[project.scripts]
+revdeps = "revdeps.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

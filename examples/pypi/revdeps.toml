@@ -1,0 +1,21 @@
+# Example: two apps that depend on "tinyconf". Your local change lives in ./tinyconf;
+# the released 1.0.0 wheel stands in for what pip would install from PyPI today.
+# Run it:  cd examples/pypi && revdeps run
+
+[library]
+ecosystem = "pypi"
+path = "tinyconf"
+
+[defaults]
+# Baseline = released tinyconf + pytest, in a fresh virtualenv per dependent.
+# In a real project the default is: {python} -m pip install -q -e . pytest
+install = "{python} -m pip install -q {config_dir}/released/tinyconf-1.0.0-py3-none-any.whl pytest"
+timeout = 300
+
+[[dependent]]
+name = "deploy-tool"
+path = "dependents/deploy-tool"
+
+[[dependent]]
+name = "feature-flags"
+path = "dependents/feature-flags"

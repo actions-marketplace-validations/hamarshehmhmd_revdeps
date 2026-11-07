@@ -1,0 +1,30 @@
+# Example: four apps that depend on "slugkit". Your local change lives in ./slugkit;
+# the released 1.0.0 tarball stands in for what npm would install today.
+# Run it:  cd examples/npm && revdeps run
+
+[library]
+ecosystem = "npm"
+path = "slugkit"
+
+[defaults]
+# Baseline = released slugkit. In a real project you'd keep the default (npm ci / npm install).
+install = "npm install --no-audit --no-fund {config_dir}/released/slugkit-1.0.0.tgz"
+# node:test with a JUnit file so revdeps can name the tests that newly fail.
+test = "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination={junit}"
+timeout = 300
+
+[[dependent]]
+name = "blog-engine"
+path = "dependents/blog-engine"
+
+[[dependent]]
+name = "url-shortener"
+path = "dependents/url-shortener"
+
+[[dependent]]
+name = "recipe-site"
+path = "dependents/recipe-site"
+
+[[dependent]]
+name = "legacy-cms"
+path = "dependents/legacy-cms"
